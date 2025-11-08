@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getFirestore, collection, addDoc } from 'firebase/firestore';
+import { app } from '../firebaseConfig'; //  Firebase setup
 import { format } from 'date-fns';
 
-const API_URL = '';
+const API_URL = ''; // Flask backend URL (proxy handles this in dev)
 
 interface Message {
   user_message?: string;
@@ -23,12 +25,13 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedMood, setSelectedMood] = useState<string>('');
+  const db = getFirestore(app);
 
   const moods = [
     { emoji: '😔', value: 'sad' },
     { emoji: '😐', value: 'neutral' },
     { emoji: '😊', value: 'happy' },
-    { emoji: '😁', value: 'excited' }
+    { emoji: '😁', value: 'excited' },
   ];
 
   useEffect(() => {
@@ -55,13 +58,13 @@ const Dashboard: React.FC = () => {
       const response = await axios.post(`${API_URL}/api/chat`, {
         message: userMsg,
         user_id: 'demo_user',
-        calendar_events: events
+        calendar_events: events,
       });
 
       const newMessage: Message = {
         user_message: userMsg,
         ai_response: response.data.response,
-        timestamp: response.data.timestamp
+        timestamp: response.data.timestamp,
       };
 
       setMessages([...messages, newMessage]);
@@ -74,20 +77,35 @@ const Dashboard: React.FC = () => {
 
   const handleMoodSelect = async (mood: string) => {
     setSelectedMood(mood);
+
+    // ✅ Save to Firestore
+    try {
+      await addDoc(collection(db, 'journals'), {
+        user_id: 'demo_user',
+        mood: mood,
+        timestamp: new Date().toISOString(),
+      });
+      console.log('Mood saved to Firestore!');
+    } catch (error) {
+      console.error('Error saving mood:', error);
+    }
+
+    // ✅ Also log to Flask backend (optional redundancy)
     try {
       await axios.post(`${API_URL}/api/journal`, {
         user_id: 'demo_user',
         mood: mood,
-        mood_text: ''
+        mood_text: '',
       });
     } catch (error) {
-      console.error('Error logging mood:', error);
+      console.error('Error logging mood to Flask:', error);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sage-50 via-lavender-50 to-gold-50">
       <div className="flex">
+        {/* Sidebar */}
         <aside className="w-64 bg-white border-r border-sage-200 min-h-screen p-6">
           <div className="flex items-center mb-8">
             <div className="text-3xl mr-2">🧠</div>
@@ -97,20 +115,32 @@ const Dashboard: React.FC = () => {
             <div className="bg-sage-100 text-sage-800 px-4 py-3 rounded-lg font-medium">
               Dashboard
             </div>
-            <div 
-              onClick={() => alert('Journal page coming soon! This will show your mood tracking history and insights.')}
+            <div
+              onClick={() =>
+                alert(
+                  'Journal page coming soon! This will show your mood tracking history and insights.'
+                )
+              }
               className="text-sage-600 px-4 py-3 rounded-lg hover:bg-sage-50 cursor-pointer"
             >
               Journal
             </div>
-            <div 
-              onClick={() => alert('Check-In page coming soon! This will provide daily wellness check-ins and reflections.')}
+            <div
+              onClick={() =>
+                alert(
+                  'Check-In page coming soon! This will provide daily wellness check-ins and reflections.'
+                )
+              }
               className="text-sage-600 px-4 py-3 rounded-lg hover:bg-sage-50 cursor-pointer"
             >
               Check-In
             </div>
-            <div 
-              onClick={() => alert('Resources page coming soon! This will show mental health resources based on your school.')}
+            <div
+              onClick={() =>
+                alert(
+                  'Resources page coming soon! This will show mental health resources based on your school.'
+                )
+              }
               className="text-sage-600 px-4 py-3 rounded-lg hover:bg-sage-50 cursor-pointer"
             >
               Resources
@@ -118,6 +148,7 @@ const Dashboard: React.FC = () => {
           </nav>
         </aside>
 
+        {/* Main Content */}
         <main className="flex-1 p-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-4xl font-bold text-sage-800">Welcome, Emily 😌</h2>
@@ -132,7 +163,9 @@ const Dashboard: React.FC = () => {
             AI-Powered Mental Wellness Companion
           </h3>
 
+          {/* Chat + Calendar Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {/* Upcoming Events */}
             <div className="lg:col-span-1 bg-sage-50 rounded-xl p-6 border border-sage-200">
               <h4 className="text-lg font-semibold text-sage-800 mb-4">Upcoming Events</h4>
               <div className="space-y-3">
@@ -147,6 +180,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* AI Chat */}
             <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-lavender-200">
               <div className="flex items-center mb-4">
                 <div className="text-2xl mr-2">💬</div>
@@ -200,7 +234,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* Mood Logging + UniQuest Board */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Mood Tracker */}
             <div className="bg-gold-50 rounded-xl p-6 border border-gold-200">
               <h4 className="text-lg font-semibold text-gold-800 mb-4">Log your mood</h4>
               <p className="text-sage-700 mb-4">How are you feeling?</p>
@@ -224,6 +260,7 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
+            {/* UniQuest Board Preview */}
             <div className="bg-lavender-50 rounded-xl p-6 border border-lavender-200">
               <h4 className="text-lg font-semibold text-lavender-800 mb-4">UniQuest Board</h4>
               <div className="text-center py-8">

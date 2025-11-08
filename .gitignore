@@ -35,7 +35,7 @@ yarn-error.log*
 coverage/
 build/
 .DS_Store
-.env.local
+frontend/.env.local
 .env.development.local
 .env.test.local
 .env.production.local
@@ -63,3 +63,5 @@ Thumbs.db
 *.pem
 *.key
 service-account*.json
+firebase_credentials.json
+backend/.env
