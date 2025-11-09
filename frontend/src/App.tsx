@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Resources from "./pages/Resources";
 import Login from "./pages/Login";
+import UniBoard from "./pages/UniBoard";
 import "./App.css";
 
 function App() {
@@ -19,14 +20,17 @@ function App() {
 
   return (
     <Router>
-      {isAuthenticated ? (
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/resources" element={<Resources />} />
-        </Routes>
-      ) : (
-        <Login />
-      )}
+      <Routes>
+        {isAuthenticated ? (
+          <>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/resources" element={<Resources />} />
+            <Route path="/uniboard" element={<UniBoard />} /> {/* ✅ now reachable */}
+          </>
+        ) : (
+          <Route path="*" element={<Login />} />
+        )}
+      </Routes>
     </Router>
   );
 }

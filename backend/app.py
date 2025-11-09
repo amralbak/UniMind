@@ -45,6 +45,14 @@ chat_sessions = {}
 journal_entries = {}
 user_profiles = {}
 
+def add_xp_and_move(user_id, xp_amount=10):
+    """Update user profile with XP and board progress."""
+    profile = user_profiles.get(user_id, {"xp": 0, "board_pos": 0})
+    profile["xp"] += int(xp_amount)
+    profile["board_pos"] = (profile["board_pos"] + 1) % 20  # 20 tiles total
+    user_profiles[user_id] = profile
+    return profile
+
 # -----------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------
@@ -79,6 +87,8 @@ def chat():
         if user_id not in chat_sessions:
             chat_sessions[user_id] = []
         chat_sessions[user_id].append(chat_entry)
+        progress = add_xp_and_move(user_id, xp_amount=15)
+
 
         # Save chat to Firestore (optional)
         if firebase_db:
@@ -202,6 +212,7 @@ def add_journal_entry():
         if user_id not in journal_entries:
             journal_entries[user_id] = []
         journal_entries[user_id].append(entry)
+        add_xp_and_move(user_id, xp_amount=10)
 
         # Save to Firestore if connected
         if firebase_db:
@@ -373,6 +384,53 @@ def firebase_test():
         return jsonify({"status": "success", "message": "Data written to Firestore"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# -----------------------------------------------------------
+# UniBoard (Gamified Wellness Dashboard)
+# -----------------------------------------------------------
+@app.route('/api/xp', methods=['POST'])
+def add_xp():
+    try:
+        body = request.get_json(force=True)
+        user_id = body.get('user_id', 'demo_user')
+        amount = int(body.get('amount', 10))
+        profile = user_profiles.get(user_id, {"xp": 0})
+        profile["xp"] += amount
+        user_profiles[user_id] = profile
+        return jsonify({"xp": profile["xp"]}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/uniboard', methods=['GET'])
+def get_uniboard():
+    user_id = request.args.get('user_id', 'demo_user')
+    profile = user_profiles.get(user_id, {"xp": 0, "board_pos": 0})
+
+    # convert to level-like data
+    xp_total = profile["xp"]
+    xp_goal = 600
+    board_pos = profile["board_pos"]
+    badges = xp_total // 100
+
+    # five fake categories to display on board
+    progress = {
+        "academics": min(5, xp_total // 120),
+        "mental_health": min(5, xp_total // 100),
+        "life_balance": min(5, xp_total // 140),
+        "connection": min(5, xp_total // 150),
+        "creativity": min(5, xp_total // 160),
+    }
+
+    move_message = f"You’re on tile {board_pos}. Keep it up! 🌱"
+
+    return jsonify({
+        "move_message": move_message,
+        "progress": progress,
+        "xp": {"total": xp_total, "goal": xp_goal},
+        "badges": badges,
+        "board_pos": board_pos
+    })
+
 
 # -----------------------------------------------------------
 # Run Server

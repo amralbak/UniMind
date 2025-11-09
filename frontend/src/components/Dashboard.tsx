@@ -29,6 +29,20 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [selectedMood, setSelectedMood] = useState<string>('');
+  const [showUniboardReminder, setShowUniboardReminder] = useState(false);
+  const openUniboard = () => {
+    // mark the visit and navigate
+    localStorage.setItem("unimind_last_uniboard_open", Date.now().toString());
+    setShowUniboardReminder(false);
+    navigate("/uniboard");
+  };
+
+  const dismissUniboardReminderForToday = () => {
+    // remember we dismissed the banner today
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    localStorage.setItem("unimind_uniboard_dismissed_on", today);
+    setShowUniboardReminder(false);
+  };
   const db = getFirestore(app);
 
   const navigate = useNavigate(); // ✅ ADDED
@@ -42,6 +56,24 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchCalendarEvents();
+  }, []);
+  useEffect(() => {
+    // when did they last open UniBoard?
+    const lastOpenRaw = localStorage.getItem("unimind_last_uniboard_open");
+    const lastOpen = lastOpenRaw ? Number(lastOpenRaw) : 0;
+  
+    // did they dismiss the banner today?
+    const dismissedOn = localStorage.getItem("unimind_uniboard_dismissed_on");
+    const today = new Date().toISOString().slice(0, 10);
+  
+    // show if: not dismissed today AND (never opened OR > 24h since last open)
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const shouldShow =
+      dismissedOn !== today && (Date.now() - lastOpen > TWENTY_FOUR_HOURS);
+  
+    if (shouldShow) {
+      setShowUniboardReminder(true);
+    }
   }, []);
 
   const fetchCalendarEvents = async () => {
@@ -184,6 +216,30 @@ const Dashboard: React.FC = () => {
           <h3 className="text-3xl font-semibold text-sage-700 mb-6">
             AI-Powered Mental Wellness Companion
           </h3>
+          {showUniboardReminder && (
+          <div className="mb-6 rounded-lg border border-lavender-300 bg-lavender-50 p-4 flex items-center justify-between">
+            <div className="text-sage-800">
+              <div className="font-semibold">Keep your streak going ✨</div>
+              <div className="text-sm text-sage-600">
+                You haven’t visited your UniBoard in a bit. Want to log a quick reflection?
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={dismissUniboardReminderForToday}
+                className="px-3 py-2 rounded-lg border border-sage-300 text-sage-700 hover:bg-white"
+              >
+                Not now
+              </button>
+              <button
+                onClick={openUniboard}
+                className="px-3 py-2 rounded-lg bg-lavender-500 text-white hover:bg-lavender-600"
+              >
+                Open UniBoard
+              </button>
+            </div>
+          </div>
+        )}
 
           {/* Chat + Calendar Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -282,8 +338,14 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* UniQuest Board Preview */}
-            <div className="bg-lavender-50 rounded-xl p-6 border border-lavender-200">
+            {/* UniQuest Board Preview — Clickable */}
+            <div
+              onClick={() => {
+                localStorage.setItem("unimind_last_uniboard_open", Date.now().toString());
+                navigate("/uniboard");
+              }}
+              className="bg-lavender-50 rounded-xl p-6 border border-lavender-200 cursor-pointer hover:shadow-md transition"
+            >
               <h4 className="text-lg font-semibold text-lavender-800 mb-4">UniQuest Board</h4>
               <div className="text-center py-8">
                 <div className="text-5xl mb-4">🏆</div>
