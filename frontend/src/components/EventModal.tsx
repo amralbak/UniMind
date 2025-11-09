@@ -1,144 +1,142 @@
 import React, { useState } from 'react';
+import { format, setHours, setMinutes, parse } from 'date-fns';
 
-// Define the properties the modal component will accept
+// --- Define EventModalProps ---
 interface EventModalProps {
-    event: { id: string; title: string; start: Date; };
+    event: { id: string; title: string; start: Date; end: Date; }; 
     onClose: () => void;
-    onAction: (action: 'update' | 'delete', newTitle?: string) => void;
+    isNew: boolean; 
+    // Action now includes new start/end dates
+    onAction: (action: 'update' | 'delete' | 'create', newTitle?: string, newStart?: Date, newEnd?: Date) => void;
 }
 
-const EventModal: React.FC<EventModalProps> = ({ event, onClose, onAction }) => {
+const EventModal: React.FC<EventModalProps> = ({ event, onClose, isNew, onAction }) => {
     
-    // State to manage the input field value and an error message
     const [currentTitle, setCurrentTitle] = useState(event.title);
-    const [error, setError] = useState<string | null>(null);
+
+    // State for time inputs
+    const getFormattedTime = (date: Date) => format(date, 'HH:mm');
+    const [currentStartTime, setCurrentStartTime] = useState(getFormattedTime(event.start));
+    const [currentEndTime, setCurrentEndTime] = useState(getFormattedTime(event.end));
     
-    // Format the date for display
-    const formattedDate = event.start.toLocaleString('en-US', {
+    // Format the date header (e.g., "Monday, November 9, 2025")
+    const formattedDate = event.start.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
     });
 
+    // Helper to combine the base date with the time from the input string (HH:mm)
+    const getCombinedDateTime = (baseDate: Date, timeString: string): Date => {
+        const [hours, minutes] = timeString.split(':').map(Number);
+        let newDate = setHours(baseDate, hours);
+        newDate = setMinutes(newDate, minutes);
+        return newDate;
+    };
+
+
     const handleSave = () => {
-        setError(null);
         if (currentTitle.trim() === '') {
-            // Replaced alert() with in-modal state for error display
-            setError("Title cannot be empty."); 
+            console.error("Title cannot be empty."); 
             return;
         }
-        onAction('update', currentTitle);
+        
+        // Calculate the final modified start and end dates
+        const newStart = getCombinedDateTime(event.start, currentStartTime);
+        const newEnd = getCombinedDateTime(event.end, currentEndTime);
+        
+        onAction(isNew ? 'create' : 'update', currentTitle, newStart, newEnd);
     };
 
     const handleDelete = () => {
-        // For simple apps, we'll confirm deletion directly, but ideally, this 
-        // would be a separate confirmation modal to eliminate window.confirm.
-        // We will keep the button logic simple for now and rely on user intent.
-        onAction('delete');
+        if (window.confirm(`Are you sure you want to delete the event: "${event.title}"?`)) {
+             onAction('delete');
+        }
     };
 
     return (
         // Modal Backdrop
-        <div style={styles.backdrop}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[1000]">
             {/* Modal Content */}
-            <div style={styles.modalContent}>
-                <h3 style={styles.header}>Edit Event: {event.title}</h3>
-                <p style={styles.dateText}>{formattedDate}</p>
+            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm border border-gray-100">
+                <h3 className="text-2xl font-bold text-gray-800 mb-1">
+                    {isNew ? 'Create New Event' : 'Edit Event'}
+                </h3>
+                <p className="text-sm text-gray-500 mb-4 border-b pb-3 font-medium">
+                    {formattedDate}
+                </p>
 
-                <div style={styles.inputGroup}>
-                    <label htmlFor="event-title" style={styles.label}>Title</label>
-                    <input 
-                        id="event-title"
-                        type="text"
-                        value={currentTitle}
-                        onChange={(e) => {
-                            setCurrentTitle(e.target.value);
-                            setError(null); // Clear error on change
-                        }}
-                        style={{ ...styles.input, border: error ? '1px solid #dc3545' : '1px solid #ccc' }}
-                    />
-                    {error && <p style={styles.errorText}>{error}</p>}
+                <div className="space-y-4 mb-6">
+                    {/* Title Input */}
+                    <div>
+                        <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 mb-2">Event Title</label>
+                        <input 
+                            id="event-title"
+                            type="text"
+                            value={currentTitle}
+                            onChange={(e) => setCurrentTitle(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
+                            placeholder="e.g., Physics Exam"
+                        />
+                    </div>
+                    
+                    {/* Time Inputs */}
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                            <label htmlFor="start-time" className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                            <input 
+                                id="start-time"
+                                type="time"
+                                value={currentStartTime}
+                                onChange={(e) => setCurrentStartTime(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label htmlFor="end-time" className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                            <input 
+                                id="end-time"
+                                type="time"
+                                value={currentEndTime}
+                                onChange={(e) => setCurrentEndTime(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 transition"
+                            />
+                        </div>
+                    </div>
                 </div>
 
-                <div style={styles.buttonContainer}>
-                    <button 
-                        onClick={handleDelete}
-                        style={{ ...styles.button, ...styles.deleteButton }}
-                    >
-                        Delete
-                    </button>
+                <div className="flex justify-between items-center mt-4">
+                    {/* Only show delete button for existing events */}
+                    {!isNew && (
+                         <button 
+                            onClick={handleDelete}
+                            className="text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition shadow-md"
+                        >
+                            Delete
+                        </button>
+                    )}
+                   
                     
-                    <button 
-                        onClick={onClose}
-                        style={{ ...styles.button, ...styles.cancelButton }}
-                    >
-                        Cancel
-                    </button>
+                    <span className="flex gap-3 ml-auto">
+                        <button 
+                            onClick={onClose}
+                            className="text-sm font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition"
+                        >
+                            Cancel
+                        </button>
 
-                    <button 
-                        onClick={handleSave}
-                        style={{ ...styles.button, ...styles.saveButton }}
-                    >
-                        Save
-                    </button>
+                        <button 
+                            onClick={handleSave}
+                            className="text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition shadow-md"
+                        >
+                            {isNew ? 'Create Event' : 'Save Changes'}
+                        </button>
+                    </span>
                 </div>
             </div>
         </div>
     );
-};
-
-// Basic inline styles (replace these with your global CSS or utility classes)
-const styles: { [key: string]: React.CSSProperties } = {
-    backdrop: {
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-        backgroundColor: 'rgba(0, 0, 0, 0.6)', 
-        display: 'flex', justifyContent: 'center', alignItems: 'center', 
-        zIndex: 1000 
-    },
-    modalContent: {
-        backgroundColor: '#fff', padding: '30px', borderRadius: '12px', 
-        width: '90%', maxWidth: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-    },
-    header: {
-        fontSize: '1.5rem', marginBottom: '10px', color: '#333'
-    },
-    dateText: {
-        color: '#666', fontSize: '0.9rem', marginBottom: '20px'
-    },
-    inputGroup: {
-        marginBottom: '20px'
-    },
-    label: {
-        display: 'block', marginBottom: '5px', fontWeight: 'bold'
-    },
-    input: {
-        width: '100%', padding: '10px', borderRadius: '6px', 
-        boxSizing: 'border-box'
-    },
-    errorText: {
-        color: '#dc3545',
-        marginTop: '5px',
-        fontSize: '0.9rem'
-    },
-    buttonContainer: {
-        display: 'flex', justifyContent: 'flex-end', gap: '10px'
-    },
-    button: {
-        padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', border: 'none',
-        fontWeight: 'bold'
-    },
-    deleteButton: {
-        backgroundColor: '#dc3545', color: 'white', marginRight: 'auto'
-    },
-    cancelButton: {
-        backgroundColor: '#e9ecef', color: '#333'
-    },
-    saveButton: {
-        backgroundColor: '#007bff', color: 'white'
-    }
 };
 
 export default EventModal;

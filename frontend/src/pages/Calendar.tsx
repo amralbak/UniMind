@@ -32,24 +32,24 @@ interface MyEvent extends Event {
     title: string;
     start: Date;
     end: Date;
+    isNew?: boolean; // Flag to indicate a new event
 }
 
-// --- Custom event component (for click listener) ---
+// --- Custom event component (FIXED for reliable clicking) ---
 const CustomEvent = (props: any) => {
+    // The library's internal click handler is unreliable, so we force the parent handler call.
     const handleEventClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         
-        // FIX: The prop you want to call is usually passed as 'onSelect' 
-        // to the CustomEvent component by the library. If that fails, 
-        // we'll try the generic onClick handler the library provides on props.
-        if (typeof props.onClick === 'function') {
-            props.onClick(props.event, e);
-        } else if (typeof props.onSelect === 'function') {
-            // Fallback for previous attempts
-            props.onSelect(props.event, e);
+        // Call the parent component's handleSelectEvent logic directly
+        if (typeof props.parentSelectEvent === 'function') {
+            props.parentSelectEvent(props.event);
+        } else {
+            // Fallback for previous library attempts
+            if (typeof props.onSelect === 'function') props.onSelect(props.event, e);
+            else if (typeof props.onClick === 'function') props.onClick(props.event, e);
+            else console.error("Custom event handler not found in props.");
         }
-        // NOTE: The main component handler (handleSelectEvent) will now fire correctly
-        // because the library's internal onClick handler is finally executed.
     };
 
     return (
@@ -63,7 +63,7 @@ const CustomEvent = (props: any) => {
     );
 };
 
-// --- CUSTOM TOOLBAR (FIX FOR BUTTONS) ---
+// --- CUSTOM TOOLBAR (Fixes navigation buttons) ---
 const CustomToolbar = (props: any) => {
     
     const { setCurrentDate, setCurrentView, currentDate, currentView } = props;
@@ -146,10 +146,8 @@ const CalendarPage: React.FC = () => {
     const db = getFirestore(app);
     const userId = user?.sub ?? "demo_user";
 
-    // --- STATE FOR DATE AND VIEW CONTROL ---
     const [currentDate, setCurrentDate] = useState(new Date()); 
     const [currentView, setCurrentView] = useState<View>(Views.MONTH); 
-    // ----------------------------------------
 
     const [events, setEvents] = useState<MyEvent[]>([]);
     const [selectedEvent, setSelectedEvent] = useState<MyEvent | null>(null);
@@ -187,51 +185,60 @@ const CalendarPage: React.FC = () => {
 
     useEffect(() => { loadEvents(); }, [userId]);
 
-    // --- Slot Handler (omitted for brevity) ---
+    // --- SLOT HANDLER (OPENS MODAL FOR NEW EVENT) ---
     const handleSelectSlot = async ({ start, end }: { start: Date, end: Date }) => {
-        if (selectedEvent) return; 
-
-        console.log("[LOG: SLOT HANDLER] Slot selection triggered.");
-        const title = prompt("Enter a title for the new event:"); 
-        
-        if (!title) return;
-        
-        const dateFormat = "yyyy-MM-dd'T'HH:mm:ss";
-        const startLocalString = format(start, dateFormat);
-        const endLocalString = format(end, dateFormat);
-        
-        await addDoc(collection(db, "events"), {
-            user_id: userId,
-            title,
-            notes: "",
-            allDay: false,
-            start: startLocalString,
-            end: endLocalString,
-            created_at: new Date().toISOString()
-        });
-        loadEvents();
+        // Open the modal with a temporary 'new' event object
+        setSelectedEvent({
+            id: 'temp-new-id', 
+            title: '', // Start with blank title for creation
+            start: start,
+            end: end,
+            isNew: true, 
+        } as MyEvent);
+        console.log("[LOG: SLOT HANDLER] Slot selection triggered. Opening custom modal.");
     };
 
 
-    // --- Modal Action Handler (omitted for brevity) ---
-    const handleUpdateOrDelete = async (action: 'update' | 'delete', newTitle?: string) => { 
-        if (!selectedEvent) return;
-        const eventRef = doc(db, "events", selectedEvent.id); 
+    // --- MODAL ACTION HANDLER (Modified to handle creation) ---
+    const handleUpdateOrDelete = async (action: 'update' | 'delete' | 'create', title?: string, newStart?: Date, newEnd?: Date) => { 
+        if (!selectedEvent || !title || !newStart || !newEnd) {
+            setSelectedEvent(null);
+            return;
+        }
 
-        if (action === "delete") {
+        const dateFormat = "yyyy-MM-dd'T'HH:mm:ss";
+
+        if (action === 'create' && selectedEvent.isNew) {
+            await addDoc(collection(db, "events"), {
+                user_id: userId,
+                title: title,
+                notes: "",
+                allDay: false,
+                start: format(newStart, dateFormat),
+                end: format(newEnd, dateFormat),
+                created_at: new Date().toISOString()
+            });
+        } else if (action === 'delete') {
+            const eventRef = doc(db, "events", selectedEvent.id); 
             await deleteDoc(eventRef);
-        } else if (action === "update" && newTitle && newTitle !== selectedEvent.title) {
-            await updateDoc(eventRef, { title: newTitle });
+        } else if (action === 'update') {
+            const eventRef = doc(db, "events", selectedEvent.id); 
+            await updateDoc(eventRef, { 
+                title: title,
+                start: format(newStart, dateFormat),
+                end: format(newEnd, dateFormat),
+            });
         }
 
         setSelectedEvent(null);
         loadEvents();
     };
 
-    // --- Event Click Handler (Opens modal) ---
+
+    // --- Event Click Handler (Opens modal for existing event) ---
     const handleSelectEvent = (event: MyEvent) => {
-        console.log(`[LOG: EVENT HANDLER] Event clicked. Opening modal for: ${event.title}`);
         setSelectedEvent(event); 
+        console.log(`[LOG: EVENT HANDLER] Event clicked. Opening modal for: ${event.title}`);
     };
     
     // Helper to close the modal
@@ -239,9 +246,9 @@ const CalendarPage: React.FC = () => {
         setSelectedEvent(null);
     };
     
-    // These handlers are still required by the Calendar component signature
+    // These handlers are required by the Calendar component signature
     const handleNavigate = (newDate: Date) => {
-        setCurrentDate(newDate); 
+        setCurrentDate(newDate);
     };
     
     const handleViewChange = (newView: View) => {
@@ -263,31 +270,28 @@ const CalendarPage: React.FC = () => {
                     onSelectEvent={handleSelectEvent}
                     onSelectSlot={handleSelectSlot}
                     
-                    // --- CONTROLLED NAVIGATION & VIEW ---
                     date={currentDate} 
                     onNavigate={handleNavigate}
                     view={currentView}
                     onView={handleViewChange}
                     
-                    // Force re-render for stability
                     key={`${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}-${currentView}`}
 
                     views={[Views.MONTH, Views.WEEK, Views.DAY]}
                     style={{ height: 600 }}
                     
                     components={{
-                        // FIX: Pass required state setters via the toolbar prop
-                        toolbar: () => (
+                        toolbar: (props) => (
                             <CustomToolbar
                                 currentDate={currentDate}
                                 setCurrentDate={setCurrentDate}
                                 currentView={currentView}
                                 setCurrentView={setCurrentView}
-                                date={currentDate} 
+                                {...props} 
                             />
                         ),
-                        // Event component for click handling
-                        event: CustomEvent, 
+                        // FIX: Pass the handleSelectEvent function as a custom prop named 'parentSelectEvent'
+                        event: (props) => <CustomEvent {...props} parentSelectEvent={handleSelectEvent} />,
                     }}
                 />
             </div>
@@ -297,6 +301,7 @@ const CalendarPage: React.FC = () => {
                 <EventModal
                     event={selectedEvent}
                     onClose={handleCloseModal}
+                    isNew={selectedEvent.isNew || false} 
                     onAction={handleUpdateOrDelete}
                 />
             )}
