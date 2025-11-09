@@ -226,28 +226,6 @@ const fetchCalendarEvents = async () => {
               </div>
             ))}
           </div>
-<<<<<<< HEAD
-          <nav className="space-y-2">
-            <div className="bg-sage-100 text-sage-800 px-4 py-3 rounded-lg font-medium">
-              Dashboard
-            </div>
-            <div
-                onClick={() => navigate("/journal")}
-                className="text-sage-600 px-4 py-3 rounded-lg hover:bg-sage-50 cursor-pointer"
-              >
-                Journal
-            </div>
-            <div
-              onClick={() =>
-                alert(
-                  'Check-In page coming soon! This will provide daily wellness check-ins and reflections.'
-                )
-              }
-              className="text-sage-600 px-4 py-3 rounded-lg hover:bg-sage-50 cursor-pointer"
-            >
-              Check-In
-            </div>
-=======
           
           {/* VIEW FULL CALENDAR BUTTON (Navigation Logic) */}
           <button
@@ -261,7 +239,6 @@ const fetchCalendarEvents = async () => {
           >
               View Full Calendar
           </button>
->>>>>>> origin/calendar-sidebar
 
         </div>
 
@@ -272,53 +249,18 @@ const fetchCalendarEvents = async () => {
             <h4 className="text-lg font-semibold text-lavender-800">Quick Check-In</h4>
           </div>
 
-          <div className="mb-4 max-h-64 overflow-y-auto space-y-4">
+          {/* ✅ Chat container with auto-scroll */}
+          <div
+            ref={chatContainerRef}
+            className="mb-4 max-h-64 overflow-y-auto space-y-4"
+            onScroll={() => setUserScrolled(true)}
+          >
             {messages.map((msg, index) => (
               <div key={index}>
                 {msg.user_message && (
                   <div className="bg-lavender-100 rounded-lg p-3 mb-2 ml-8">
                     <p className="text-sage-800">{msg.user_message}</p>
                   </div>
-<<<<<<< HEAD
-                ))}
-              </div>
-            </div>
-
-            {/* AI Chat */}
-            <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-lavender-200">
-              <div className="flex items-center mb-4">
-                <div className="text-2xl mr-2">💬</div>
-                <h4 className="text-lg font-semibold text-lavender-800">Quick Check-In</h4>
-              </div>
-
-              {/* ✅ Chat container with auto-scroll */}
-              <div
-                ref={chatContainerRef}
-                className="mb-4 max-h-64 overflow-y-auto space-y-4"
-                onScroll={() => setUserScrolled(true)}
-              >
-                {messages.map((msg, index) => (
-                  <div key={index}>
-                    {msg.user_message && (
-                      <div className="bg-lavender-100 rounded-lg p-3 mb-2 ml-8">
-                        <p className="text-sage-800">{msg.user_message}</p>
-                      </div>
-                    )}
-                    {msg.ai_response && (
-                      <div className="bg-sage-100 rounded-lg p-3 mr-8">
-                        <div className="flex items-start">
-                          <span className="text-2xl mr-2">🤖</span>
-                          <p className="text-sage-800 flex-1">{msg.ai_response}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {messages.length === 0 && (
-                  <div className="text-center py-8 text-sage-600">
-                    <p>Start a conversation with UniMind...</p>
-                    <p className="text-sm mt-2">How are you feeling today?</p>
-=======
                 )}
                 {msg.ai_response && (
                   <div className="bg-sage-100 rounded-lg p-3 mr-8">
@@ -326,10 +268,8 @@ const fetchCalendarEvents = async () => {
                       <span className="text-2xl mr-2">🤖</span>
                       <p className="text-sage-800 flex-1">{msg.ai_response}</p>
                     </div>
->>>>>>> origin/calendar-sidebar
                   </div>
                 )}
-                <div ref={bottomRef}></div>
               </div>
             ))}
             {messages.length === 0 && (
@@ -338,6 +278,7 @@ const fetchCalendarEvents = async () => {
                 <p className="text-sm mt-2">How are you feeling today?</p>
               </div>
             )}
+            <div ref={bottomRef}></div> 
           </div>
 
           <div className="flex gap-2">
@@ -403,8 +344,4 @@ const fetchCalendarEvents = async () => {
   );
 };
 
-<<<<<<< HEAD
-export default Dashboard;
-=======
 export default DashboardPage;
->>>>>>> origin/calendar-sidebar
