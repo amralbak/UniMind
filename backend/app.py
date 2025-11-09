@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env
 load_dotenv()
+from dotenv import load_dotenv
+import os
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
 # Firebase Admin SDK
 import firebase_admin
@@ -230,105 +233,115 @@ def get_journal_entries():
 # -----------------------------------------------------------
 # Nationwide + School-Specific Mental Health Resources
 # -----------------------------------------------------------
+GLOBAL_RESOURCES = [
+    {"name": "988 Suicide & Crisis Lifeline", "description": "24/7 free & confidential", "url": "https://988lifeline.org"},
+    {"name": "Crisis Text Line", "description": "Text HOME to 741741 (US/CA)", "url": "https://www.crisistextline.org"},
+    {"name": "7 Cups", "description": "Free emotional support & affordable therapy", "url": "https://www.7cups.com"},
+    {"name": "SAMHSA National Helpline", "description": "Treatment referral & info", "url": "https://findtreatment.gov"}
+]
+
 @app.route('/api/resources', methods=['GET'])
 def get_resources():
-    school = request.args.get('school', '').strip()
-
-    # Always show nationwide resources
-    global_resources = [
-        {
-            "name": "988 Suicide & Crisis Lifeline",
-            "description": "Free and confidential support for people in distress, 24/7 across the U.S.",
-            "url": "https://988lifeline.org"
-        },
-        {
-            "name": "Crisis Text Line",
-            "description": "Text HOME to 741741 to connect with a trained crisis counselor (U.S. & Canada).",
-            "url": "https://www.crisistextline.org"
-        },
-        {
-            "name": "7 Cups",
-            "description": "Free emotional support from trained listeners, plus affordable online therapy.",
-            "url": "https://www.7cups.com"
-        },
-        {
-            "name": "SAMHSA National Helpline",
-            "description": "24/7 treatment referral and information for mental health or substance use issues.",
-            "url": "https://findtreatment.gov"
-        }
-    ]
-
-    # If no school provided, return just global and an empty local list
-    if not school:
-        return jsonify({
-            "global": global_resources,
-            "local": [],
-            "school_specific": []   # backward compatibility with old frontend key
-        }), 200
-
-    GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
-    if not GOOGLE_PLACES_API_KEY:
-        # If key missing, avoid crashing; return global only
-        return jsonify({
-            "global": global_resources,
-            "local": [],
-            "school_specific": [],
-            "error": "GOOGLE_PLACES_API_KEY not set on server"
-        }), 200
-
     try:
-        # 1) Geocode the college name to lat/lng
+        school = request.args.get('school', '').strip()
+        if not school:
+            return jsonify({"error": "Missing school parameter"}), 400
+
+        GOOGLE_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+        print("🔑 Key loaded:", bool(GOOGLE_KEY))
+
+        # ---------- Geocode the school ----------
         geo = requests.get(
             "https://maps.googleapis.com/maps/api/geocode/json",
-            params={"address": school, "key": GOOGLE_PLACES_API_KEY},
+            params={"address": f"{school} university campus", "key": GOOGLE_KEY},
             timeout=10
         ).json()
+        print("📍 Geocode status:", geo.get("status"))
 
         if not geo.get("results"):
             return jsonify({
-                "global": global_resources,
-                "local": [],
-                "school_specific": [],
-                "note": f"No geocoding results for '{school}'"
+                "global": GLOBAL_RESOURCES,
+                "school_specific": [{
+                    "name": school,
+                    "description": "Not found. Try typing the full college or university name."
+                }]
             }), 200
 
         loc = geo["results"][0]["geometry"]["location"]
         lat, lng = loc["lat"], loc["lng"]
+        print(f"✅ Geocoded {school} → {lat}, {lng}")
 
-        # 2) Search nearby mental-health resources (within ~15km / ~9mi)
-        places = requests.get(
-            "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-            params={
-                "location": f"{lat},{lng}",
-                "radius": 15000,
-                "keyword": "mental health OR counseling OR therapy OR wellness",
-                "key": GOOGLE_PLACES_API_KEY,
-            },
-            timeout=10
-        ).json()
+        # ---------- NEW Places API (Nearby first) ----------
+        places_url_nearby = "https://places.googleapis.com/v1/places:searchNearby"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": GOOGLE_KEY,
+            # FieldMask = only the fields you will render
+            "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.googleMapsUri"
+        }
+        nearby_payload = {
+            "includedTypes": [
+                "doctor", "psychologist", "psychiatrist", "hospital", "clinic",
+                "university", "school"
+            ],
+            "maxResultCount": 20,
+            "rankPreference": "DISTANCE",
+            "locationRestriction": {
+                "circle": {
+                    "center": {"latitude": lat, "longitude": lng},
+                    "radius": 32187  # ≈ 20 miles
+                }
+            }
+        }
 
-        local_resources = []
-        for p in places.get("results", []):
-            local_resources.append({
-                "name": p.get("name"),
-                "address": p.get("vicinity"),
-                "rating": p.get("rating"),
-                "url": f"https://www.google.com/maps/place/?q=place_id:{p.get('place_id')}"
-            })
+        nearby_resp = requests.post(places_url_nearby, headers=headers, json=nearby_payload, timeout=12)
+        nearby_json = nearby_resp.json()
+        print("🏥 Nearby status:", nearby_resp.status_code, nearby_json.get("error", {}).get("message"))
 
-        # Return both 'local' and 'school_specific' to avoid breaking the current UI
+        def normalize(places_list):
+            out = []
+            for p in places_list:
+                name = (p.get("displayName") or {}).get("text")
+                addr = p.get("formattedAddress") or "Address not available"
+                maps = p.get("googleMapsUri") or "#"
+                if name:
+                    out.append({"name": name, "description": addr, "url": maps})
+            return out
+
+        local = normalize(nearby_json.get("places", []))
+
+        # ---------- Fallback: Places searchText (semantic) ----------
+        if not local:
+            print("🔁 Falling back to searchText…")
+            places_url_text = "https://places.googleapis.com/v1/places:searchText"
+            text_payload = {
+                "textQuery": "mental health OR counseling OR wellness center OR therapy",
+                "maxResultCount": 20,
+                "locationBias": {
+                    "circle": {
+                        "center": {"latitude": lat, "longitude": lng},
+                        "radius": 32187
+                    }
+                }
+            }
+            text_resp = requests.post(places_url_text, headers=headers, json=text_payload, timeout=12)
+            text_json = text_resp.json()
+            print("🧭 searchText status:", text_resp.status_code, text_json.get("error", {}).get("message"))
+            local = normalize(text_json.get("places", []))
+
         return jsonify({
-            "global": global_resources,
-            "local": local_resources,
-            "school_specific": local_resources
+            "global": GLOBAL_RESOURCES,
+            "school_specific": local or [{
+                "name": school,
+                "description": "No nearby resources found within ~20 miles."
+            }]
         }), 200
 
     except Exception as e:
+        print("💥 ERROR:", e)
         return jsonify({
-            "global": global_resources,
-            "local": [],
-            "school_specific": [],
-            "error": str(e)
+            "global": GLOBAL_RESOURCES,
+            "school_specific": [{"name": "Server Error", "description": str(e)}]
         }), 500
 
 # -----------------------------------------------------------
