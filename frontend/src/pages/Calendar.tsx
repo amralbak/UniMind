@@ -19,6 +19,8 @@ import {
 } from "firebase/firestore";
 import { app } from "../firebaseConfig";
 import { useAuth0 } from "@auth0/auth0-react"; 
+// NOTE: EventModal is no longer needed in this version, as we use prompt()
+// We'll keep the import in case you restore the modal later.
 import EventModal from "../components/EventModal"; 
 
 // --- LOCALIZER SETUP ---
@@ -32,6 +34,7 @@ interface MyEvent extends Event {
     title: string;
     start: Date;
     end: Date;
+<<<<<<< HEAD
     isNew?: boolean; // Flag to indicate a new event
 }
 
@@ -64,6 +67,12 @@ const CustomEvent = (props: any) => {
 };
 
 // --- CUSTOM TOOLBAR (Fixes navigation buttons) ---
+=======
+    isNew?: boolean; 
+}
+
+// --- CUSTOM TOOLBAR (Kept to fix broken navigation buttons) ---
+>>>>>>> origin/calendar-sidebar
 const CustomToolbar = (props: any) => {
     
     const { setCurrentDate, setCurrentView, currentDate, currentView } = props;
@@ -150,7 +159,7 @@ const CalendarPage: React.FC = () => {
     const [currentView, setCurrentView] = useState<View>(Views.MONTH); 
 
     const [events, setEvents] = useState<MyEvent[]>([]);
-    const [selectedEvent, setSelectedEvent] = useState<MyEvent | null>(null);
+    const [selectedEvent, setSelectedEvent] = useState<MyEvent | null>(null); // Kept for consistency
 
     // --- Data Loading (omitted for brevity) ---
     const loadEvents = async () => { 
@@ -185,6 +194,7 @@ const CalendarPage: React.FC = () => {
 
     useEffect(() => { loadEvents(); }, [userId]);
 
+<<<<<<< HEAD
     // --- SLOT HANDLER (OPENS MODAL FOR NEW EVENT) ---
     const handleSelectSlot = async ({ start, end }: { start: Date, end: Date }) => {
         // Open the modal with a temporary 'new' event object
@@ -228,11 +238,49 @@ const CalendarPage: React.FC = () => {
                 start: format(newStart, dateFormat),
                 end: format(newEnd, dateFormat),
             });
-        }
-
-        setSelectedEvent(null);
+=======
+    // --- SLOT HANDLER (SIMPLE NEW EVENT CREATION) ---
+    const handleSelectSlot = async ({ start, end }: { start: Date, end: Date }) => {
+        // Simple prompt logic restored
+        const title = prompt("Enter a title for the new event:"); 
+        
+        if (!title) return;
+        
+        const dateFormat = "yyyy-MM-dd'T'HH:mm:ss";
+        const startLocalString = format(start, dateFormat);
+        const endLocalString = format(end, dateFormat);
+        
+        await addDoc(collection(db, "events"), {
+            user_id: userId,
+            title,
+            notes: "",
+            allDay: false,
+            start: startLocalString,
+            end: endLocalString,
+            created_at: new Date().toISOString()
+        });
         loadEvents();
     };
+
+
+    // --- EVENT CLICK HANDLER (SIMPLE EDIT/DELETE RESTORED) ---
+    const handleSelectEvent = async (event: MyEvent) => {
+        // Simple prompt logic restored
+        const choice = prompt(`Edit name or type DELETE to remove:`, event.title);
+        if (!choice) return;
+
+        const eventRef = doc(db, "events", event.id); 
+
+        if (choice.toUpperCase() === "DELETE") {
+            await deleteDoc(eventRef);
+        } else {
+            await updateDoc(eventRef, { title: choice });
+>>>>>>> origin/calendar-sidebar
+        }
+
+        loadEvents();
+    };
+<<<<<<< HEAD
 
 
     // --- Event Click Handler (Opens modal for existing event) ---
@@ -240,13 +288,19 @@ const CalendarPage: React.FC = () => {
         setSelectedEvent(event); 
         console.log(`[LOG: EVENT HANDLER] Event clicked. Opening modal for: ${event.title}`);
     };
+=======
+>>>>>>> origin/calendar-sidebar
     
-    // Helper to close the modal
+    // Helper to close the modal (kept for completeness, though modal is unused)
     const handleCloseModal = () => {
         setSelectedEvent(null);
     };
     
+<<<<<<< HEAD
     // These handlers are required by the Calendar component signature
+=======
+    // --- NAVIGATION HANDLERS ---
+>>>>>>> origin/calendar-sidebar
     const handleNavigate = (newDate: Date) => {
         setCurrentDate(newDate);
     };
@@ -267,6 +321,7 @@ const CalendarPage: React.FC = () => {
                     startAccessor="start"
                     endAccessor="end"
                     selectable
+                    // The standard handler is simple again
                     onSelectEvent={handleSelectEvent}
                     onSelectSlot={handleSelectSlot}
                     
@@ -281,6 +336,10 @@ const CalendarPage: React.FC = () => {
                     style={{ height: 600 }}
                     
                     components={{
+<<<<<<< HEAD
+=======
+                        // Custom Toolbar guarantees navigation buttons work
+>>>>>>> origin/calendar-sidebar
                         toolbar: (props) => (
                             <CustomToolbar
                                 currentDate={currentDate}
@@ -290,12 +349,17 @@ const CalendarPage: React.FC = () => {
                                 {...props} 
                             />
                         ),
+<<<<<<< HEAD
                         // FIX: Pass the handleSelectEvent function as a custom prop named 'parentSelectEvent'
                         event: (props) => <CustomEvent {...props} parentSelectEvent={handleSelectEvent} />,
+=======
+                        // Removed CustomEvent override
+>>>>>>> origin/calendar-sidebar
                     }}
                 />
             </div>
             
+<<<<<<< HEAD
             {/* RENDER THE CUSTOM MODAL CONDITIONALLY */}
             {selectedEvent && (
                 <EventModal
@@ -305,6 +369,9 @@ const CalendarPage: React.FC = () => {
                     onAction={handleUpdateOrDelete}
                 />
             )}
+=======
+            {/* Removed custom modal rendering */}
+>>>>>>> origin/calendar-sidebar
         </div>
     );
 };
