@@ -1,43 +1,48 @@
 import React, { useState } from 'react';
+// FIX: Import format from date-fns
+import { format } from 'date-fns';
 
-// Define the properties the modal component will accept
+// --- Define EventModalProps ---
 interface EventModalProps {
-    event: { id: string; title: string; start: Date; };
+    // Note: event now includes the 'end' date for better context
+    event: { id: string; title: string; start: Date; end: Date; }; 
     onClose: () => void;
-    onAction: (action: 'update' | 'delete', newTitle?: string) => void;
+    // Flag to determine if we are creating (true) or editing (false)
+    isNew: boolean; 
+    // Action now includes 'create'
+    onAction: (action: 'update' | 'delete' | 'create', newTitle?: string) => void;
 }
 
-const EventModal: React.FC<EventModalProps> = ({ event, onClose, onAction }) => {
+const EventModal: React.FC<EventModalProps> = ({ event, onClose, isNew, onAction }) => {
     
-    // State to manage the input field value and an error message
+    // State to manage the input field value
     const [currentTitle, setCurrentTitle] = useState(event.title);
-    const [error, setError] = useState<string | null>(null);
     
-    // Format the date for display
-    const formattedDate = event.start.toLocaleString('en-US', {
+    // Format the date for display (e.g., "Sunday, November 9, 2025 (10:00 AM - 11:00 AM)")
+    const formattedDate = event.start.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+    }) + " (" + format(event.start, 'h:mm a') + " - " + format(event.end, 'h:mm a') + ")";
+
 
     const handleSave = () => {
-        setError(null);
         if (currentTitle.trim() === '') {
-            // Replaced alert() with in-modal state for error display
-            setError("Title cannot be empty."); 
+            // Using console.error instead of alert()
+            console.error("Title cannot be empty."); 
             return;
         }
-        onAction('update', currentTitle);
+        
+        // Determine the action based on the isNew flag
+        onAction(isNew ? 'create' : 'update', currentTitle);
     };
 
     const handleDelete = () => {
-        // For simple apps, we'll confirm deletion directly, but ideally, this 
-        // would be a separate confirmation modal to eliminate window.confirm.
-        // We will keep the button logic simple for now and rely on user intent.
-        onAction('delete');
+        // Using window.confirm as a temporary solution until custom confirmation UI is built
+        if (window.confirm(`Are you sure you want to delete the event: "${event.title}"?`)) {
+             onAction('delete');
+        }
     };
 
     return (
@@ -45,8 +50,10 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onAction }) => 
         <div style={styles.backdrop}>
             {/* Modal Content */}
             <div style={styles.modalContent}>
-                <h3 style={styles.header}>Edit Event: {event.title}</h3>
-                <p style={styles.dateText}>{formattedDate}</p>
+                <h3 style={styles.header}>{isNew ? 'Create New Event' : 'Edit Event'}</h3>
+                <p style={styles.dateText}>
+                    {formattedDate}
+                </p>
 
                 <div style={styles.inputGroup}>
                     <label htmlFor="event-title" style={styles.label}>Title</label>
@@ -54,23 +61,22 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onAction }) => 
                         id="event-title"
                         type="text"
                         value={currentTitle}
-                        onChange={(e) => {
-                            setCurrentTitle(e.target.value);
-                            setError(null); // Clear error on change
-                        }}
-                        style={{ ...styles.input, border: error ? '1px solid #dc3545' : '1px solid #ccc' }}
+                        onChange={(e) => setCurrentTitle(e.target.value)}
+                        style={styles.input}
                     />
-                    {error && <p style={styles.errorText}>{error}</p>}
                 </div>
 
                 <div style={styles.buttonContainer}>
-                    <button 
-                        onClick={handleDelete}
-                        style={{ ...styles.button, ...styles.deleteButton }}
-                    >
-                        Delete
-                    </button>
-                    
+                    {/* Only show delete button for existing events */}
+                    {!isNew && (
+                         <button 
+                            onClick={handleDelete}
+                            style={{ ...styles.button, ...styles.deleteButton }}
+                        >
+                            Delete
+                        </button>
+                    )}
+                   
                     <button 
                         onClick={onClose}
                         style={{ ...styles.button, ...styles.cancelButton }}
@@ -82,7 +88,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, onAction }) => 
                         onClick={handleSave}
                         style={{ ...styles.button, ...styles.saveButton }}
                     >
-                        Save
+                        {isNew ? 'Create' : 'Save'}
                     </button>
                 </div>
             </div>
@@ -115,13 +121,8 @@ const styles: { [key: string]: React.CSSProperties } = {
         display: 'block', marginBottom: '5px', fontWeight: 'bold'
     },
     input: {
-        width: '100%', padding: '10px', borderRadius: '6px', 
+        width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc',
         boxSizing: 'border-box'
-    },
-    errorText: {
-        color: '#dc3545',
-        marginTop: '5px',
-        fontSize: '0.9rem'
     },
     buttonContainer: {
         display: 'flex', justifyContent: 'flex-end', gap: '10px'
